@@ -1,5 +1,6 @@
 import pymorphy3
 from PyQt5 import QtCore
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QApplication
 
 from analyzer_page_ui import Ui_Form
@@ -86,13 +87,40 @@ class AnalyzerForm(QWidget, Ui_Form):
         if word.isalpha():
             self.output.setPlainText(f"{word.capitalize()}:\n")
             parsers = [i for i in morph if all(
-                [True if j not in ["Surn", "Name", "Patr" "UNKN"] else False for j in
+                [True if j not in ["Surn", "Name", "Patr", "UNKN", "Slng"] else False for j in
                  str(i.tag).replace(" ", ",").split(",")])]
             for q, k in enumerate(parsers):
-                if str(k.methods_stack[0][0]) == "DictionaryAnalyzer()":
+                if len(k.methods_stack) == 1 and str(k.methods_stack[0][0]) == "DictionaryAnalyzer()":
                     parser = str(k.tag).replace(" ", ",").split(",")
                     s = [self.tag_dict[j] for j in parser if j in self.tag_dict]
                     s.insert(1, f"н.ф - {k.normal_form}")
+
+                    if "существительное" in s:
+                        noun = pymorphy3.MorphAnalyzer().parse(k.normal_form)[0]
+
+                        if (noun.tag.gender == "femn" or noun.tag.gender == "masc") and (
+                                noun.word.endswith("а") or noun.word.endswith("я")):
+                            s.append("I склонение")
+                        elif noun.tag.gender == "masc" or (
+                                noun.tag.gender == "neut" and (noun.word.endswith("о") or noun.word.endswith("е"))):
+                            s.append("II склонение")
+                        elif noun.tag.gender == "femn" and noun.word.endswith("ь"):
+                            s.append("III склонение")
+
+                    elif "глагол" in s:
+                        normal_form = k.normal_form
+                        if normal_form.endswith(("ся", "сь")):
+                            s.append("возвратный")
+                            normal_form = normal_form[:-2]
+                        verb = pymorphy3.MorphAnalyzer().parse(normal_form)[0]
+
+                        if (verb.word.endswith("ить") or verb.word in (
+                                "держать", "зависеть", "терпеть", "слышать", "смотреть", "обидеть", "видеть", "дышать",
+                                "ненавидеть", "вертеть", "гнать")) and verb.word not in ("брить", "стелить"):
+                            s.append("II спряжение")
+                        else:
+                            s.append("I спряжение")
+
                     self.output.setPlainText(f'{self.output.toPlainText()}{q + 1}) {", ".join(s)}\n\n')
                     flag = True
             print(*parsers, sep="\n")
@@ -107,3 +135,7 @@ class AnalyzerForm(QWidget, Ui_Form):
 
     def home(self):
         self.parent().setCurrentIndex(0)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Return:
+            self.analyze_btn.click()
