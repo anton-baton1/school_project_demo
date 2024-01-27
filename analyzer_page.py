@@ -72,26 +72,31 @@ class AnalyzerForm(QWidget, Ui_Form):
                          'Coll': 'собирательное',
                          'Erro': 'опечатка'
                          }
+        self.output.setReadOnly(True)
         self.analyze_btn.clicked.connect(self.analyze)
         self.clear_btn.clicked.connect(self.clear)
         self.test_btn.clicked.connect(self.test)
         self.home_btn.clicked.connect(self.home)
 
     def analyze(self):
-        if self.word_edit.text().strip().isalpha():
-            self.output.setPlainText(f"{self.word_edit.text().replace(' ', '').capitalize()}:\n")
-            parsers = [i for i in pymorphy3.MorphAnalyzer().parse(self.word_edit.text().replace(' ', '')) if all(
+        word = self.word_edit.text().strip()
+        morph = pymorphy3.MorphAnalyzer().parse(word)
+        flag = False
+
+        if word.isalpha():
+            self.output.setPlainText(f"{word.capitalize()}:\n")
+            parsers = [i for i in morph if all(
                 [True if j not in ["Surn", "Name", "Patr" "UNKN"] else False for j in
                  str(i.tag).replace(" ", ",").split(",")])]
             for q, k in enumerate(parsers):
-                if k.score > 0.2:
+                if str(k.methods_stack[0][0]) == "DictionaryAnalyzer()":
                     parser = str(k.tag).replace(" ", ",").split(",")
                     s = [self.tag_dict[j] for j in parser if j in self.tag_dict]
                     s.insert(1, f"н.ф - {k.normal_form}")
-                    print(parser, k.score)
                     self.output.setPlainText(f'{self.output.toPlainText()}{q + 1}) {", ".join(s)}\n\n')
-        else:
-            self.word_edit.setText("")
+                    flag = True
+            print(*parsers, sep="\n")
+        if not word.isalpha() or not flag:
             self.output.setPlainText("Некорректный ввод")
 
     def clear(self):
